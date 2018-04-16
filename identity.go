@@ -20,6 +20,16 @@ type Identity struct {
 	MspId       string
 }
 
+// MarshalBinary encodes identity into a binary form and returns the result
+func (i *Identity) MarshalBinary() (data []byte, err error) {
+	return json.Marshal(i)
+}
+
+// UnmarshalBinary unmarshal a binary representation of identity
+func (i *Identity) UnmarshalBinary(data []byte) error {
+	return json.Unmarshal(data, i)
+}
+
 // EnrollmentId get enrollment id from certificate
 func (i *Identity) EnrollmentId() string {
 	return i.Certificate.Subject.CommonName

@@ -19,8 +19,6 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/hyperledger/fabric/protos/common"
-	"github.com/hyperledger/fabric/protos/ledger/rwset"
-	"github.com/hyperledger/fabric/protos/ledger/rwset/kvrwset"
 	"github.com/hyperledger/fabric/protos/msp"
 	"github.com/hyperledger/fabric/protos/peer"
 )
@@ -371,10 +369,10 @@ func getChainCodeProposalPayload(bytes []byte) (*peer.ChaincodeProposalPayload, 
 }
 
 type TransactionMetadata struct {
-	ChainCodeName    string            `json:"chain_code_name"`
-	ChainCodeVersion string            `json:"chain_code_version"`
-	Input            []string          `json:"input"`
-	Output           map[string]string `json:"output"`
+	ChainCodeName    string   `json:"chain_code_name"`
+	ChainCodeVersion string   `json:"chain_code_version"`
+	Input            []string `json:"input"`
+	Output           string   `json:"output"`
 }
 
 func decodeTransaction(payload []byte) (*peer.Response, error) {
@@ -389,12 +387,22 @@ func decodeTransaction(payload []byte) (*peer.Response, error) {
 		return nil, err
 	}
 	tx := new(peer.Transaction)
-	err = proto.Unmarshal(p.Data, tx)
+	err = proto.Unmarshal(p.GetData(), tx)
 	if err != nil {
 		return nil, err
 	}
 	chainCodeActionPayload := new(peer.ChaincodeActionPayload)
 	err = proto.Unmarshal(tx.Actions[0].GetPayload(), chainCodeActionPayload)
+	if err != nil {
+		return nil, err
+	}
+	prp := new(peer.ProposalResponsePayload)
+	err = proto.Unmarshal(chainCodeActionPayload.GetAction().GetProposalResponsePayload(), prp)
+	if err != nil {
+		return nil, err
+	}
+	chaincodeAction := new(peer.ChaincodeAction)
+	err = proto.Unmarshal(prp.GetExtension(), chaincodeAction)
 	if err != nil {
 		return nil, err
 	}
@@ -408,33 +416,17 @@ func decodeTransaction(payload []byte) (*peer.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	propRespPayload := new(peer.ProposalResponsePayload)
-	err = proto.Unmarshal(chainCodeActionPayload.GetAction().GetProposalResponsePayload(), propRespPayload)
-	if err != nil {
-		return nil, err
-	}
-	chaincodeAction := new(peer.ChaincodeAction)
-	err = proto.Unmarshal(propRespPayload.GetExtension(), chaincodeAction)
-	if err != nil {
-		return nil, err
-	}
-	txRWSet := new(TxRwSet)
-	if err = txRWSet.FromProtoBytes(chaincodeAction.Results); err != nil {
-		return nil, err
-	}
 
 	t := &TransactionMetadata{
 		Input:            make([]string, len(cis.GetChaincodeSpec().GetInput().GetArgs())),
-		Output:           make(map[string]string),
+		Output:           string(chaincodeAction.GetResponse().GetPayload()),
 		ChainCodeVersion: chaincodeAction.GetChaincodeId().GetVersion(),
 		ChainCodeName:    chaincodeAction.GetChaincodeId().GetName(),
 	}
 	for k, v := range cis.GetChaincodeSpec().GetInput().GetArgs() {
 		t.Input[k] = string(v)
 	}
-	for _, v := range txRWSet.NsRwSets[0].KvRwSet.GetWrites() {
-		t.Output[v.Key] = string(v.Value)
-	}
+
 	payload, err = json.Marshal(t)
 	if err != nil {
 		return nil, err
@@ -443,76 +435,4 @@ func decodeTransaction(payload []byte) (*peer.Response, error) {
 	chaincodeAction.GetResponse().Payload = payload
 
 	return chaincodeAction.GetResponse(), nil
-}
-
-type TxRwSet struct {
-	NsRwSets []*NsRwSet
-}
-
-type NsRwSet struct {
-	NameSpace        string
-	KvRwSet          *kvrwset.KVRWSet
-	CollHashedRwSets []*CollHashedRwSet
-}
-
-type CollHashedRwSet struct {
-	CollectionName string
-	HashedRwSet    *kvrwset.HashedRWSet
-	PvtRwSetHash   []byte
-}
-
-// FromProtoBytes deserializes protobytes into TxReadWriteSet proto message and populates 'TxRwSet'
-func (txRwSet *TxRwSet) FromProtoBytes(protoBytes []byte) error {
-	protoMsg := &rwset.TxReadWriteSet{}
-	var err error
-	var txRwSetTemp *TxRwSet
-	if err = proto.Unmarshal(protoBytes, protoMsg); err != nil {
-		return err
-	}
-	if txRwSetTemp, err = TxRwSetFromProtoMsg(protoMsg); err != nil {
-		return err
-	}
-	txRwSet.NsRwSets = txRwSetTemp.NsRwSets
-	return nil
-}
-
-func TxRwSetFromProtoMsg(protoMsg *rwset.TxReadWriteSet) (*TxRwSet, error) {
-	txRwSet := &TxRwSet{}
-	var nsRwSet *NsRwSet
-	var err error
-	for _, nsRwSetProtoMsg := range protoMsg.NsRwset {
-		if nsRwSet, err = nsRwSetFromProtoMsg(nsRwSetProtoMsg); err != nil {
-			return nil, err
-		}
-		txRwSet.NsRwSets = append(txRwSet.NsRwSets, nsRwSet)
-	}
-	return txRwSet, nil
-}
-
-func nsRwSetFromProtoMsg(protoMsg *rwset.NsReadWriteSet) (*NsRwSet, error) {
-	nsRwSet := &NsRwSet{NameSpace: protoMsg.Namespace, KvRwSet: &kvrwset.KVRWSet{}}
-	if err := proto.Unmarshal(protoMsg.Rwset, nsRwSet.KvRwSet); err != nil {
-		return nil, err
-	}
-	var err error
-	var collHashedRwSet *CollHashedRwSet
-	for _, collHashedRwSetProtoMsg := range protoMsg.CollectionHashedRwset {
-		if collHashedRwSet, err = collHashedRwSetFromProtoMsg(collHashedRwSetProtoMsg); err != nil {
-			return nil, err
-		}
-		nsRwSet.CollHashedRwSets = append(nsRwSet.CollHashedRwSets, collHashedRwSet)
-	}
-	return nsRwSet, nil
-}
-
-func collHashedRwSetFromProtoMsg(protoMsg *rwset.CollectionHashedReadWriteSet) (*CollHashedRwSet, error) {
-	colHashedRwSet := &CollHashedRwSet{
-		CollectionName: protoMsg.CollectionName,
-		PvtRwSetHash:   protoMsg.PvtRwsetHash,
-		HashedRwSet:    &kvrwset.HashedRWSet{},
-	}
-	if err := proto.Unmarshal(protoMsg.HashedRwset, colHashedRwSet.HashedRwSet); err != nil {
-		return nil, err
-	}
-	return colHashedRwSet, nil
 }

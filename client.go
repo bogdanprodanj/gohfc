@@ -471,8 +471,9 @@ func (c *FabricClient) QueryTransaction(ctx context.Context, identity Identity, 
 	}
 	r := sendToPeers(ctx, execPeers, proposal)
 	response := make([]QueryTransactionResponse, len(r))
+	var qtr QueryTransactionResponse
 	for idx, p := range r {
-		qtr := QueryTransactionResponse{PeerName: p.Name}
+		qtr.PeerName = p.Name
 		if p.Err != nil {
 			qtr.Error = p.Err
 		} else {

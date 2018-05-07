@@ -47,12 +47,11 @@ type InvokeResponse struct {
 
 // QueryTransactionResponse holds data from `client.QueryTransaction`
 type QueryTransactionResponse struct {
-	PeerName  string          `json:"peer_name"`
-	Error     error           `json:"error"`
-	Status    int32           `json:"status"`
-	Message   string          `json:"message"`
-	Payload   json.RawMessage `json:"payload"`
-	TimeStamp time.Time       `json:"time_stamp"`
+	PeerName string          `json:"peer_name"`
+	Error    error           `json:"error"`
+	Status   int32           `json:"status"`
+	Message  string          `json:"message"`
+	Payload  json.RawMessage `json:"payload"`
 }
 
 type transactionProposal struct {
@@ -370,11 +369,11 @@ func getChainCodeProposalPayload(bytes []byte) (*peer.ChaincodeProposalPayload, 
 }
 
 type TransactionMetadata struct {
-	ChainCodeName    string    `json:"chain_code_name"`
-	ChainCodeVersion string    `json:"chain_code_version"`
-	Input            []string  `json:"input"`
-	Output           string    `json:"output"`
-	TimeStamp        time.Time `json:"time_stamp"`
+	ChainCodeName    string   `json:"chain_code_name"`
+	ChainCodeVersion string   `json:"chain_code_version"`
+	Input            []string `json:"input"`
+	Output           string   `json:"output"`
+	TimeStamp        int64    `json:"time_stamp"`
 }
 
 func decodeTransaction(payload []byte) (*peer.Response, error) {
@@ -433,7 +432,7 @@ func decodeTransaction(payload []byte) (*peer.Response, error) {
 		Output:           string(chaincodeAction.GetResponse().GetPayload()),
 		ChainCodeVersion: chaincodeAction.GetChaincodeId().GetVersion(),
 		ChainCodeName:    chaincodeAction.GetChaincodeId().GetName(),
-		TimeStamp:        ts,
+		TimeStamp:        ts.Unix(),
 	}
 	for k, v := range cis.GetChaincodeSpec().GetInput().GetArgs() {
 		t.Input[k] = string(v)

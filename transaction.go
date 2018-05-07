@@ -47,11 +47,12 @@ type InvokeResponse struct {
 
 // QueryTransactionResponse holds data from `client.QueryTransaction`
 type QueryTransactionResponse struct {
-	PeerName string          `json:"peer_name"`
-	Error    error           `json:"error"`
-	Status   int32           `json:"status"`
-	Message  string          `json:"message"`
-	Payload  json.RawMessage `json:"payload"`
+	PeerName  string          `json:"peer_name"`
+	Error     error           `json:"error"`
+	Status    int32           `json:"status"`
+	Message   string          `json:"message"`
+	Payload   json.RawMessage `json:"payload"`
+	TimeStamp time.Time       `json:"time_stamp"`
 }
 
 type transactionProposal struct {
@@ -369,10 +370,11 @@ func getChainCodeProposalPayload(bytes []byte) (*peer.ChaincodeProposalPayload, 
 }
 
 type TransactionMetadata struct {
-	ChainCodeName    string   `json:"chain_code_name"`
-	ChainCodeVersion string   `json:"chain_code_version"`
-	Input            []string `json:"input"`
-	Output           string   `json:"output"`
+	ChainCodeName    string    `json:"chain_code_name"`
+	ChainCodeVersion string    `json:"chain_code_version"`
+	Input            []string  `json:"input"`
+	Output           string    `json:"output"`
+	TimeStamp        time.Time `json:"time_stamp"`
 }
 
 func decodeTransaction(payload []byte) (*peer.Response, error) {
@@ -416,12 +418,22 @@ func decodeTransaction(payload []byte) (*peer.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	ch := new(common.ChannelHeader)
+	err = proto.Unmarshal(p.GetHeader().GetChannelHeader(), ch)
+	if err != nil {
+		return nil, err
+	}
+	var ts time.Time
+	ts, err = ptypes.Timestamp(ch.GetTimestamp())
+	if err != nil {
+		return nil, err
+	}
 	t := &TransactionMetadata{
 		Input:            make([]string, len(cis.GetChaincodeSpec().GetInput().GetArgs())),
 		Output:           string(chaincodeAction.GetResponse().GetPayload()),
 		ChainCodeVersion: chaincodeAction.GetChaincodeId().GetVersion(),
 		ChainCodeName:    chaincodeAction.GetChaincodeId().GetName(),
+		TimeStamp:        ts,
 	}
 	for k, v := range cis.GetChaincodeSpec().GetInput().GetArgs() {
 		t.Input[k] = string(v)

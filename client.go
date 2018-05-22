@@ -24,12 +24,29 @@ const (
 	joinChainArg           = "JoinChain"
 )
 
+type Fabric interface {
+	CreateUpdateChannel(ctx context.Context, identity Identity, path string, channelId string, orderer string) error
+	JoinChannel(ctx context.Context, identity Identity, channelId string, peers []string, orderer string) ([]*PeerResponse, error)
+	InstallChainCode(ctx context.Context, identity Identity, req *InstallRequest, peers []string) ([]*PeerResponse, error)
+	InstantiateChainCode(ctx context.Context, identity Identity, req *ChainCode, peers []string, orderer string,
+		operation string, collectionsConfig []CollectionConfig) (*orderer.BroadcastResponse, error)
+	QueryInstalledChainCodes(ctx context.Context, identity Identity, peers []string) ([]*ChainCodesResponse, error)
+	QueryInstantiatedChainCodes(ctx context.Context, identity Identity, channelId string, peers []string) ([]*ChainCodesResponse, error)
+	QueryChannels(ctx context.Context, identity Identity, peers []string) ([]*QueryChannelsResponse, error)
+	QueryChannelInfo(ctx context.Context, identity Identity, channelId string, peers []string) ([]*QueryChannelInfoResponse, error)
+	Query(ctx context.Context, identity Identity, chainCode ChainCode, peers []string) ([]*QueryResponse, error)
+	Invoke(ctx context.Context, identity Identity, chainCode ChainCode, peers []string, orderer string) (*InvokeResponse, error)
+	QueryTransaction(ctx context.Context, identity Identity, channelId string, txId string, peers []string) ([]QueryTransactionResponse, error)
+	ListenForFullBlock(ctx context.Context, identity Identity, eventPeer, channelId string, response chan<- EventBlockResponse) error
+	ListenForFilteredBlock(ctx context.Context, identity Identity, eventPeer, channelId string, response chan<- EventBlockResponse) error
+}
+
 // FabricClient expose API's to work with Hyperledger Fabric
 type FabricClient struct {
 	Crypto     CryptoSuite
-	Peers      map[string]*Peer
-	Orderers   map[string]*Orderer
-	EventPeers map[string]*Peer
+	Orderers   map[string]Orderer
+	Peers      map[string]Peer
+	EventPeers map[string]Peer
 }
 
 // CreateUpdateChannel read channel config generated (usually) from configtxgen and send it to orderer
@@ -72,7 +89,7 @@ func (c *FabricClient) JoinChannel(ctx context.Context, identity Identity, chann
 		return nil, ErrPeerNameNotFound
 	}
 
-	block, err := ord.getGenesisBlock(identity, c.Crypto, channelId)
+	block, err := ord.getGenesisBlock(ctx, identity, c.Crypto, channelId)
 
 	if err != nil {
 		return nil, err
@@ -505,7 +522,7 @@ func (c *FabricClient) ListenForFullBlock(ctx context.Context, identity Identity
 	if !ok {
 		return ErrPeerNameNotFound
 	}
-	listener, err := NewEventListener(ctx, c.Crypto, identity, *ep, channelId, EventTypeFullBlock)
+	listener, err := NewEventListener(ctx, c.Crypto, identity, ep, channelId, EventTypeFullBlock)
 	if err != nil {
 		return err
 	}
@@ -525,7 +542,7 @@ func (c *FabricClient) ListenForFilteredBlock(ctx context.Context, identity Iden
 	if !ok {
 		return ErrPeerNameNotFound
 	}
-	listener, err := NewEventListener(ctx, c.Crypto, identity, *ep, channelId, EventTypeFiltered)
+	listener, err := NewEventListener(ctx, c.Crypto, identity, ep, channelId, EventTypeFiltered)
 	if err != nil {
 		return err
 	}
@@ -551,7 +568,7 @@ func NewFabricClientFromConfig(config ClientConfig) (*FabricClient, error) {
 		return nil, ErrInvalidAlgorithmFamily
 	}
 
-	peers := make(map[string]*Peer)
+	peers := make(map[string]Peer)
 	for name, p := range config.Peers {
 		newPeer, err := NewPeerFromConfig(p)
 		if err != nil {
@@ -561,7 +578,7 @@ func NewFabricClientFromConfig(config ClientConfig) (*FabricClient, error) {
 		peers[name] = newPeer
 	}
 
-	eventPeers := make(map[string]*Peer)
+	eventPeers := make(map[string]Peer)
 	for name, p := range config.EventPeers {
 		newEventPeer, err := NewPeerFromConfig(p)
 		if err != nil {
@@ -571,7 +588,7 @@ func NewFabricClientFromConfig(config ClientConfig) (*FabricClient, error) {
 		eventPeers[name] = newEventPeer
 	}
 
-	orderers := make(map[string]*Orderer)
+	orderers := make(map[string]Orderer)
 	for name, o := range config.Orderers {
 		newOrderer, err := NewOrdererFromConfig(o)
 		if err != nil {
@@ -593,8 +610,8 @@ func NewFabricClient(path string) (*FabricClient, error) {
 	return NewFabricClientFromConfig(*config)
 }
 
-func (c FabricClient) getPeers(names []string) []*Peer {
-	res := make([]*Peer, 0, len(names))
+func (c FabricClient) getPeers(names []string) []Peer {
+	res := make([]Peer, 0, len(names))
 	for _, p := range names {
 		if fp, ok := c.Peers[p]; ok {
 			res = append(res, fp)
@@ -603,8 +620,8 @@ func (c FabricClient) getPeers(names []string) []*Peer {
 	return res
 }
 
-func (c FabricClient) getEventPeers(names []string) []*Peer {
-	res := make([]*Peer, 0, len(names))
+func (c FabricClient) getEventPeers(names []string) []Peer {
+	res := make([]Peer, 0, len(names))
 	for _, p := range names {
 		if fp, ok := c.EventPeers[p]; ok {
 			res = append(res, fp)

@@ -17,8 +17,15 @@ import (
 	"google.golang.org/grpc/keepalive"
 )
 
-// Orderer expose API's to communicate with orderers.
-type Orderer struct {
+// Orderer provides an atomic broadcast ordering service for consumption by the peers
+type Orderer interface {
+	Broadcast(envelope *common.Envelope) (*orderer.BroadcastResponse, error)
+	Deliver(ctx context.Context, envelope *common.Envelope) (*common.Block, error)
+	getGenesisBlock(ctx context.Context, identity Identity, crypto CryptoSuite, channelId string) (*common.Block, error)
+}
+
+// OrdererService expose API's to communicate with orderers.
+type OrdererService struct {
 	Name   string
 	Uri    string
 	Opts   []grpc.DialOption
@@ -27,10 +34,8 @@ type Orderer struct {
 	client orderer.AtomicBroadcastClient
 }
 
-const timeout = 5
-
 // Broadcast Broadcast envelope to orderer for execution.
-func (o *Orderer) Broadcast(envelope *common.Envelope) (*orderer.BroadcastResponse, error) {
+func (o *OrdererService) Broadcast(envelope *common.Envelope) (*orderer.BroadcastResponse, error) {
 	if o.con == nil {
 		c, err := grpc.Dial(o.Uri, o.Opts...)
 		if err != nil {
@@ -57,15 +62,14 @@ func (o *Orderer) Broadcast(envelope *common.Envelope) (*orderer.BroadcastRespon
 }
 
 // Deliver delivers envelope to orderer. Please note that new connection will be created on every call of Deliver.
-func (o *Orderer) Deliver(envelope *common.Envelope) (*common.Block, error) {
-
+func (o *OrdererService) Deliver(ctx context.Context, envelope *common.Envelope) (*common.Block, error) {
 	connection, err := grpc.Dial(o.Uri, o.Opts...)
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to orderer: %s err is: %v", o.Name, err)
 	}
 	defer connection.Close()
 
-	dk, err := orderer.NewAtomicBroadcastClient(connection).Deliver(context.Background())
+	dk, err := orderer.NewAtomicBroadcastClient(connection).Deliver(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -73,36 +77,28 @@ func (o *Orderer) Deliver(envelope *common.Envelope) (*common.Block, error) {
 		return nil, err
 	}
 	var block *common.Block
-	timer := time.NewTimer(time.Second * time.Duration(timeout))
-	defer timer.Stop()
-	for {
-		select {
-		case <-timer.C:
-			return nil, ErrOrdererTimeout
-		default:
-			response, err := dk.Recv()
-			if err != nil {
-				return nil, err
-			}
-			switch t := response.Type.(type) {
-			case *orderer.DeliverResponse_Status:
-				if t.Status == common.Status_SUCCESS {
-					return block, nil
-				} else {
-					return nil, fmt.Errorf("orderer response with status: %v", t.Status)
-				}
-			case *orderer.DeliverResponse_Block:
-				block = response.GetBlock()
-
-			default:
-				return nil, fmt.Errorf("unknown response type from orderer: %s", t)
-			}
+	response, err := dk.Recv()
+	if err != nil {
+		return nil, err
+	}
+	switch t := response.Type.(type) {
+	// Seek operation success, no more responses
+	case *orderer.DeliverResponse_Status:
+		if t.Status != common.Status_SUCCESS {
+			return nil, fmt.Errorf("orderer response with status: %d", t.Status)
 		}
+		return block, nil
+	// Response is a requested block
+	case *orderer.DeliverResponse_Block:
+		block = response.GetBlock()
+		return block, nil
+	// Unknown response
+	default:
+		return nil, fmt.Errorf("unknown response type from orderer: %s", t)
 	}
 }
 
-func (o *Orderer) getGenesisBlock(identity Identity, crypto CryptoSuite, channelId string) (*common.Block, error) {
-
+func (o *OrdererService) getGenesisBlock(ctx context.Context, identity Identity, crypto CryptoSuite, channelId string) (*common.Block, error) {
 	seekInfo := &orderer.SeekInfo{
 		Start:    &orderer.SeekPosition{Type: &orderer.SeekPosition_Specified{Specified: &orderer.SeekSpecified{Number: 0}}},
 		Stop:     &orderer.SeekPosition{Type: &orderer.SeekPosition_Specified{Specified: &orderer.SeekSpecified{Number: 0}}},
@@ -137,12 +133,12 @@ func (o *Orderer) getGenesisBlock(identity Identity, crypto CryptoSuite, channel
 		return nil, err
 	}
 	env := &common.Envelope{Payload: payloadBytes, Signature: payloadSignedBytes}
-	return o.Deliver(env)
+	return o.Deliver(ctx, env)
 }
 
-// NewOrdererFromConfig create new Orderer from config
-func NewOrdererFromConfig(conf OrdererConfig) (*Orderer, error) {
-	o := Orderer{Uri: conf.Host, caPath: conf.TlsPath}
+// NewOrdererFromConfig create new OrdererService from config
+func NewOrdererFromConfig(conf OrdererConfig) (*OrdererService, error) {
+	o := OrdererService{Uri: conf.Host, caPath: conf.TlsPath}
 	if !conf.UseTLS {
 		o.Opts = []grpc.DialOption{grpc.WithInsecure()}
 	} else if o.caPath != "" {
@@ -154,8 +150,8 @@ func NewOrdererFromConfig(conf OrdererConfig) (*Orderer, error) {
 	}
 	o.Opts = append(o.Opts,
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:                time.Duration(1) * time.Minute,
-			Timeout:             time.Duration(20) * time.Second,
+			Time:                time.Minute,
+			Timeout:             20 * time.Second,
 			PermitWithoutStream: true,
 		}),
 		grpc.WithBlock(),

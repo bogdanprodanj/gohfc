@@ -73,12 +73,9 @@ type EventBlockResponseTransactionEvent struct {
 }
 
 func (e *EventListener) newConnection() error {
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-	conn, err := grpc.DialContext(ctx, e.Peer.Uri, e.Peer.Opts...)
+	conn, err := grpc.DialContext(e.Context, e.Peer.GetURI(), e.Peer.GetOpts()...)
 	if err != nil {
-		return fmt.Errorf("cannot make new connection to: %s err: %v", e.Peer.Uri, err)
+		return fmt.Errorf("cannot make new connection to: %s err: %v", e.Peer.GetURI(), err)
 	}
 	e.connection = conn
 	switch e.ListenerType {
@@ -368,7 +365,7 @@ func NewEventListener(ctx context.Context, crypto CryptoSuite, identity Identity
 
 	listener := EventListener{
 		Context:      ctx,
-		Peer:         p,
+		Peer:         p.(*PeerClient),
 		Identity:     identity,
 		ChannelId:    channelId,
 		Crypto:       crypto,

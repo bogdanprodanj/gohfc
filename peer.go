@@ -15,10 +15,16 @@ import (
 	"google.golang.org/grpc/keepalive"
 )
 
+type Peer interface {
+	Endorse(ctx context.Context, resp chan *PeerResponse, prop *peer.SignedProposal)
+	GetURI() string
+	GetOpts() []grpc.DialOption
+}
+
 // Peer expose API's to communicate with peer
-type Peer struct {
+type PeerClient struct {
 	Name   string
-	Uri    string
+	URI    string
 	MspId  string
 	Opts   []grpc.DialOption
 	caPath string
@@ -34,9 +40,9 @@ type PeerResponse struct {
 }
 
 // Endorse sends single transaction to single peer.
-func (p *Peer) Endorse(ctx context.Context, resp chan *PeerResponse, prop *peer.SignedProposal) {
+func (p *PeerClient) Endorse(ctx context.Context, resp chan *PeerResponse, prop *peer.SignedProposal) {
 	if p.conn == nil {
-		conn, err := grpc.DialContext(ctx, p.Uri, p.Opts...)
+		conn, err := grpc.DialContext(ctx, p.URI, p.Opts...)
 		if err != nil {
 			resp <- &PeerResponse{Response: nil, Err: err, Name: p.Name}
 			return
@@ -53,9 +59,17 @@ func (p *Peer) Endorse(ctx context.Context, resp chan *PeerResponse, prop *peer.
 	resp <- &PeerResponse{Response: proposalResp, Name: p.Name, Err: nil}
 }
 
+func (p *PeerClient) GetURI() string {
+	return p.URI
+}
+
+func (p *PeerClient) GetOpts() []grpc.DialOption {
+	return p.Opts
+}
+
 // NewPeerFromConfig creates new peer from provided config
-func NewPeerFromConfig(conf PeerConfig) (*Peer, error) {
-	p := Peer{Uri: conf.Host, caPath: conf.TlsPath}
+func NewPeerFromConfig(conf PeerConfig) (*PeerClient, error) {
+	p := PeerClient{URI: conf.Host, caPath: conf.TlsPath}
 	if !conf.UseTLS {
 		p.Opts = []grpc.DialOption{grpc.WithInsecure()}
 	} else if p.caPath != "" {
@@ -68,8 +82,8 @@ func NewPeerFromConfig(conf PeerConfig) (*Peer, error) {
 
 	p.Opts = append(p.Opts,
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:                time.Duration(1) * time.Minute,
-			Timeout:             time.Duration(20) * time.Second,
+			Time:                time.Minute,
+			Timeout:             20 * time.Second,
 			PermitWithoutStream: true,
 		}),
 		grpc.WithBlock(),

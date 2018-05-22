@@ -254,7 +254,7 @@ type CAModifyIdentityRequest struct {
 
 // FabricCAClient is client implementation for fabric-ca server
 type FabricCAClient struct {
-	// Uri is access point for fabric-ca server. Port number and scheme must be provided.
+	// URI is access point for fabric-ca server. Port number and scheme must be provided.
 	// for example http://127.0.0.1:7054
 	Url string
 	// SkipTLSVerification define how connection must handle invalid TLC certificates.

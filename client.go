@@ -25,17 +25,17 @@ const (
 )
 
 type Fabric interface {
-	CreateUpdateChannel(ctx context.Context, identity Identity, path string, channelId string, orderer string) error
-	JoinChannel(ctx context.Context, identity Identity, channelId string, peers []string, orderer string) ([]*PeerResponse, error)
+	CreateUpdateChannel(ctx context.Context, identity Identity, path string, channelId string, ordererName string) error
+	JoinChannel(ctx context.Context, identity Identity, channelId string, peers []string, ordererName string) ([]*PeerResponse, error)
 	InstallChainCode(ctx context.Context, identity Identity, req *InstallRequest, peers []string) ([]*PeerResponse, error)
-	InstantiateChainCode(ctx context.Context, identity Identity, req *ChainCode, peers []string, orderer string,
+	InstantiateChainCode(ctx context.Context, identity Identity, req *ChainCode, peers []string, ordererName string,
 		operation string, collectionsConfig []CollectionConfig) (*orderer.BroadcastResponse, error)
 	QueryInstalledChainCodes(ctx context.Context, identity Identity, peers []string) ([]*ChainCodesResponse, error)
 	QueryInstantiatedChainCodes(ctx context.Context, identity Identity, channelId string, peers []string) ([]*ChainCodesResponse, error)
 	QueryChannels(ctx context.Context, identity Identity, peers []string) ([]*QueryChannelsResponse, error)
 	QueryChannelInfo(ctx context.Context, identity Identity, channelId string, peers []string) ([]*QueryChannelInfoResponse, error)
 	Query(ctx context.Context, identity Identity, chainCode ChainCode, peers []string) ([]*QueryResponse, error)
-	Invoke(ctx context.Context, identity Identity, chainCode ChainCode, peers []string, orderer string) (*InvokeResponse, error)
+	Invoke(ctx context.Context, identity Identity, chainCode ChainCode, peers []string, ordererName string) (*InvokeResponse, error)
 	QueryTransaction(ctx context.Context, identity Identity, channelId string, txId string, peers []string) ([]QueryTransactionResponse, error)
 	ListenForFullBlock(ctx context.Context, identity Identity, eventPeer, channelId string, response chan<- EventBlockResponse) error
 	ListenForFilteredBlock(ctx context.Context, identity Identity, eventPeer, channelId string, response chan<- EventBlockResponse) error
@@ -51,8 +51,8 @@ type FabricClient struct {
 
 // CreateUpdateChannel read channel config generated (usually) from configtxgen and send it to orderer
 // This step is needed before any peer is able to join the channel and before any future updates of the channel.
-func (c *FabricClient) CreateUpdateChannel(ctx context.Context, identity Identity, path string, channelId string, orderer string) error {
-	ord, ok := c.Orderers[orderer]
+func (c *FabricClient) CreateUpdateChannel(ctx context.Context, identity Identity, path string, channelId string, ordererName string) error {
+	ord, ok := c.Orderers[ordererName]
 	if !ok {
 		return ErrInvalidOrdererName
 	}
@@ -78,8 +78,8 @@ func (c *FabricClient) CreateUpdateChannel(ctx context.Context, identity Identit
 // JoinChannel send transaction to one or many Peers to join particular channel.
 // Channel must be created before this operation using `CreateUpdateChannel` or manually using CLI interface.
 // Orderers must be aware of this channel, otherwise operation will fail.
-func (c *FabricClient) JoinChannel(ctx context.Context, identity Identity, channelId string, peers []string, orderer string) ([]*PeerResponse, error) {
-	ord, ok := c.Orderers[orderer]
+func (c *FabricClient) JoinChannel(ctx context.Context, identity Identity, channelId string, peers []string, ordererName string) ([]*PeerResponse, error) {
+	ord, ok := c.Orderers[ordererName]
 	if !ok {
 		return nil, ErrInvalidOrdererName
 	}
@@ -177,9 +177,9 @@ func (c *FabricClient) InstallChainCode(ctx context.Context, identity Identity, 
 // If this operation update existing chaincode operation must be `upgrade`
 // collectionsConfig is configuration for private collections in versions >= 1.1. If not provided no private collections
 // will be created. collectionsConfig can be specified when chaincode is upgraded.
-func (c *FabricClient) InstantiateChainCode(ctx context.Context, identity Identity, req *ChainCode, peers []string, orderer string,
+func (c *FabricClient) InstantiateChainCode(ctx context.Context, identity Identity, req *ChainCode, peers []string, ordererName string,
 	operation string, collectionsConfig []CollectionConfig) (*orderer.BroadcastResponse, error) {
-	ord, ok := c.Orderers[orderer]
+	ord, ok := c.Orderers[ordererName]
 	if !ok {
 		return nil, ErrInvalidOrdererName
 	}
@@ -433,8 +433,8 @@ func (c *FabricClient) Query(ctx context.Context, identity Identity, chainCode C
 // If chaincode call `shim.Error` or simulation fails for other reasons this is considered as simulation failure.
 // In such case Invoke will return the error and transaction will NOT be send to orderer. This transaction will NOT be
 // committed to blockchain.
-func (c *FabricClient) Invoke(ctx context.Context, identity Identity, chainCode ChainCode, peers []string, orderer string) (*InvokeResponse, error) {
-	ord, ok := c.Orderers[orderer]
+func (c *FabricClient) Invoke(ctx context.Context, identity Identity, chainCode ChainCode, peers []string, ordererName string) (*InvokeResponse, error) {
+	ord, ok := c.Orderers[ordererName]
 	if !ok {
 		return nil, ErrInvalidOrdererName
 	}

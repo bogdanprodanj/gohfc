@@ -35,28 +35,28 @@ func (m *MockFabric) EXPECT() *MockFabricMockRecorder {
 }
 
 // CreateUpdateChannel mocks base method
-func (m *MockFabric) CreateUpdateChannel(ctx context.Context, identity Identity, path, channelId, orderer string) error {
-	ret := m.ctrl.Call(m, "CreateUpdateChannel", ctx, identity, path, channelId, orderer)
+func (m *MockFabric) CreateUpdateChannel(ctx context.Context, identity Identity, path, channelId, ordererName string) error {
+	ret := m.ctrl.Call(m, "CreateUpdateChannel", ctx, identity, path, channelId, ordererName)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // CreateUpdateChannel indicates an expected call of CreateUpdateChannel
-func (mr *MockFabricMockRecorder) CreateUpdateChannel(ctx, identity, path, channelId, orderer interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUpdateChannel", reflect.TypeOf((*MockFabric)(nil).CreateUpdateChannel), ctx, identity, path, channelId, orderer)
+func (mr *MockFabricMockRecorder) CreateUpdateChannel(ctx, identity, path, channelId, ordererName interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUpdateChannel", reflect.TypeOf((*MockFabric)(nil).CreateUpdateChannel), ctx, identity, path, channelId, ordererName)
 }
 
 // JoinChannel mocks base method
-func (m *MockFabric) JoinChannel(ctx context.Context, identity Identity, channelId string, peers []string, orderer string) ([]*PeerResponse, error) {
-	ret := m.ctrl.Call(m, "JoinChannel", ctx, identity, channelId, peers, orderer)
+func (m *MockFabric) JoinChannel(ctx context.Context, identity Identity, channelId string, peers []string, ordererName string) ([]*PeerResponse, error) {
+	ret := m.ctrl.Call(m, "JoinChannel", ctx, identity, channelId, peers, ordererName)
 	ret0, _ := ret[0].([]*PeerResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // JoinChannel indicates an expected call of JoinChannel
-func (mr *MockFabricMockRecorder) JoinChannel(ctx, identity, channelId, peers, orderer interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "JoinChannel", reflect.TypeOf((*MockFabric)(nil).JoinChannel), ctx, identity, channelId, peers, orderer)
+func (mr *MockFabricMockRecorder) JoinChannel(ctx, identity, channelId, peers, ordererName interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "JoinChannel", reflect.TypeOf((*MockFabric)(nil).JoinChannel), ctx, identity, channelId, peers, ordererName)
 }
 
 // InstallChainCode mocks base method
@@ -73,16 +73,16 @@ func (mr *MockFabricMockRecorder) InstallChainCode(ctx, identity, req, peers int
 }
 
 // InstantiateChainCode mocks base method
-func (m *MockFabric) InstantiateChainCode(ctx context.Context, identity Identity, req *ChainCode, peers []string, orderer, operation string, collectionsConfig []CollectionConfig) (*orderer.BroadcastResponse, error) {
-	ret := m.ctrl.Call(m, "InstantiateChainCode", ctx, identity, req, peers, orderer, operation, collectionsConfig)
+func (m *MockFabric) InstantiateChainCode(ctx context.Context, identity Identity, req *ChainCode, peers []string, ordererName, operation string, collectionsConfig []CollectionConfig) (*orderer.BroadcastResponse, error) {
+	ret := m.ctrl.Call(m, "InstantiateChainCode", ctx, identity, req, peers, ordererName, operation, collectionsConfig)
 	ret0, _ := ret[0].(*orderer.BroadcastResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // InstantiateChainCode indicates an expected call of InstantiateChainCode
-func (mr *MockFabricMockRecorder) InstantiateChainCode(ctx, identity, req, peers, orderer, operation, collectionsConfig interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstantiateChainCode", reflect.TypeOf((*MockFabric)(nil).InstantiateChainCode), ctx, identity, req, peers, orderer, operation, collectionsConfig)
+func (mr *MockFabricMockRecorder) InstantiateChainCode(ctx, identity, req, peers, ordererName, operation, collectionsConfig interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstantiateChainCode", reflect.TypeOf((*MockFabric)(nil).InstantiateChainCode), ctx, identity, req, peers, ordererName, operation, collectionsConfig)
 }
 
 // QueryInstalledChainCodes mocks base method
@@ -151,16 +151,16 @@ func (mr *MockFabricMockRecorder) Query(ctx, identity, chainCode, peers interfac
 }
 
 // Invoke mocks base method
-func (m *MockFabric) Invoke(ctx context.Context, identity Identity, chainCode ChainCode, peers []string, orderer string) (*InvokeResponse, error) {
-	ret := m.ctrl.Call(m, "Invoke", ctx, identity, chainCode, peers, orderer)
+func (m *MockFabric) Invoke(ctx context.Context, identity Identity, chainCode ChainCode, peers []string, ordererName string) (*InvokeResponse, error) {
+	ret := m.ctrl.Call(m, "Invoke", ctx, identity, chainCode, peers, ordererName)
 	ret0, _ := ret[0].(*InvokeResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Invoke indicates an expected call of Invoke
-func (mr *MockFabricMockRecorder) Invoke(ctx, identity, chainCode, peers, orderer interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Invoke", reflect.TypeOf((*MockFabric)(nil).Invoke), ctx, identity, chainCode, peers, orderer)
+func (mr *MockFabricMockRecorder) Invoke(ctx, identity, chainCode, peers, ordererName interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Invoke", reflect.TypeOf((*MockFabric)(nil).Invoke), ctx, identity, chainCode, peers, ordererName)
 }
 
 // QueryTransaction mocks base method

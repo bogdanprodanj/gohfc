@@ -19,237 +19,20 @@ import (
 	"strconv"
 )
 
-// RegistrationRequest holds all data needed for new registration of new user in Certificate Authority
-type CARegistrationRequest struct {
-	// EnrolmentId is unique name that identifies identity
-	EnrolmentId string `json:"id"`
-	// Type defines type of this identity (user,client, auditor etc...)
-	Type string `json:"type"`
-	// Secret is password that will be used for enrollment. If not provided random password will be generated
-	Secret string `json:"secret,omitempty"`
-	// MaxEnrollments define maximum number of times that identity can enroll. If not provided or is 0 there is no limit
-	MaxEnrollments int `json:"max_enrollments,omitempty"`
-	// Affiliation associates identity with particular organisation.
-	// for example org1.department1 makes this identity part of organisation `org1` and department `department1`
-	// Hierarchical structure can be created using .(dot). For example org1.dep1 will create dep1 as part of org1
-	Affiliation string `json:"affiliation"`
-	// Attrs are attributes associated with this identity
-	Attrs []CaRegisterAttribute `json:"attrs"`
-	// CAName is the name of the CA that should be used. FabricCa support more than one CA server on same endpoint and
-	// this names are used to distinguish between them. If empty default CA instance will be used.
-	CAName string `json:"caname,omitempty"`
-}
-
-// CaRegisterAttribute holds user attribute used for registration
-// for example user may have attr `accountType` with value `premium`
-// this attributes can be accessed in chainCode and build business logic on top of them
-type CaRegisterAttribute struct {
-	// Name is the name of the attribute.
-	Name string `json:"name"`
-	// Value is the value of the attribute. Can be empty string
-	Value string `json:"value"`
-	// ECert define how this attribute will be included in ECert. If this value is true this attribute will be
-	// added to ECert automatically on Enrollment if no attributes are requested on Enrollment request.
-	ECert bool `json:"ecert,omitempty"`
-}
-
-// CaEnrollmentRequest holds data needed for getting ECert (enrollment) from CA server
-type CaEnrollmentRequest struct {
-	// EnrollmentId is the unique entity identifies
-	EnrollmentId string
-	// Secret is the password for this identity
-	Secret string
-	// Profile define which CA profile to be used for signing. When this profile is empty default profile is used.
-	// This is the common situation when issuing and ECert.
-	// If request is fo generating TLS certificates then profile must be `tls`
-	// If operation is related to parent CA server then profile must be `ca`
-	// In FabricCA custom profiles can be created. In this situation use custom profile name.
-	Profile string `json:"profile,omitempty"`
-	// Label is used for hardware secure modules.
-	Label string `json:"label,omitempty"`
-	// CAName is the name of the CA that should be used. FabricCa support more than one CA server on same endpoint and
-	// this names are used to distinguish between them. If empty default CA instance will be used.
-	CAName string `json:"caname,omitempty"`
-	// Host is the list of valid host names for this certificate. If empty default hosts will be used
-	Hosts []string `json:"hosts"`
-	// Attrs are the attributes that must be included in ECert. This is subset of the attributes used in registration.
-	Attrs []CaEnrollAttribute `json:"attr_reqs,omitempty"`
-}
-
-// CaReEnrollmentRequest holds data needed for getting new ECert from CA server
-type CaReEnrollmentRequest struct {
-	Identity *Identity
-	// Profile define which CA profile to be used for signing. When this profile is empty default profile is used.
-	// This is the common situation when issuing and ECert.
-	// If request is fo generating TLS certificates then profile must be `tls`
-	// If operation is related to parent CA server then profile must be `ca`
-	// In FabricCA custom profiles can be created. In this situation use custom profile name.
-	Profile string `json:"profile,omitempty"`
-	// Label is used for hardware secure modules.
-	Label string `json:"label,omitempty"`
-	// CAName is the name of the CA that should be used. FabricCa support more than one CA server on same endpoint and
-	// this names are used to distinguish between them. If empty default CA instance will be used.
-	CAName string `json:"caname,omitempty"`
-	// Host is the list of valid host names for this certificate. If empty default hosts will be used
-	Hosts []string `json:"hosts"`
-	// Attrs are the attributes that must be included in ECert. This is subset of the attributes used in registration.
-	Attrs []CaEnrollAttribute `json:"attr_reqs,omitempty"`
-}
-
-// CaEnrollAttribute describe attribute that must be included in enrollment request
-type CaEnrollAttribute struct {
-	// Name is the name of the attribute
-	Name string `json:"name"`
-	// Optional define behaviour when required attribute is not available to user. If `true` then request will continue,
-	// but attribute will not be included in ECert. If `false` and attribute is missing, request will fail.
-	// If false and attribute is available, request will continue and attribute will be added in ECert
-	Optional bool `json:"optional,omitempty"`
-}
-
-// CARevocationRequest holds data needed to revoke certificate in fabric-ca
-// If AKI and Serial are provided this will revoke specific certificate.
-// If EnrolmentID is provided all certificated for this EnrollmentID will be revoked and all his/hers future attempts
-// to enroll will fail.
-type CARevocationRequest struct {
-	// EnrollmentId of the identity whose certificates should be revoked
-	// If this field is omitted, then Serial and AKI must be specified.
-	EnrollmentId string `json:"id,omitempty"`
-	// Serial number of the certificate to be revoked
-	// If this is omitted, then EnrollmentId must be specified
-	Serial string `json:"serial,omitempty"`
-	// AKI (Authority Key Identifier) of the certificate to be revoked
-	AKI string `json:"aki,omitempty"`
-	// Reason is the reason for revocation.  See https://godoc.org/golang.org/x/crypto/ocsp for
-	// valid values.  The default value is 0 (ocsp.Unspecified).
-	Reason int `json:"reason,omitempty"`
-	// CAName is the name of the CA that should be used. FabricCa support more than one CA server on same endpoint and
-	// this names are used to distinguish between them. If empty default CA instance will be used.
-	CAName string `json:"caname,omitempty"`
-	// GenCRL specifies whether to generate a CRL. CRL will be returned only when AKI and Serial are provided.
-	GenCRL bool `json:"gencrl,omitempty"`
-}
-
-// CAGetCertsResponse holds response from `GetCaCertificateChain`
-type CAGetCertsResponse struct {
-	// RootCertificates is list of pem encoded certificates
-	RootCertificates []*pem.Block
-	// IntermediateCertificates is list of pem encoded intermediate certificates
-	IntermediateCertificates []*pem.Block
-	// CAName is the name of the CA server that returns this certificates
-	CAName string
-	// Version is the version of server that returns this certificates
-	Version string
-}
-
-// CAAddAffiliationRequest contains needed data for creating new affiliation
-type CAAddAffiliationRequest struct {
-	// Name is the name of the affiliation. Hierarchical structure is created using .(dot) like `org1.department1`.
-	Name string `json:"name"`
-	// Force forces creation of missing parent affiliation. If `force` is false and parent/s is missing error will be returned.
-	Force bool `json:"force"`
-	// CAName is the name of the CA that should be used. FabricCa support more than one CA server on same endpoint and
-	// this names are used to distinguish between them. If empty default CA instance will be used.
-	CAName string `json:"caname,omitempty"`
-}
-
-// CARemoveAffiliationRequest contains needed data for removing existing affiliation
-type CARemoveAffiliationRequest struct {
-	// Name is the name of the affiliation to be removed. Dot can be used to specify child like `org1.department1`.
-	Name string
-	// Force will force removal of child affiliations and any identity associated with them
-	Force bool
-	// CAName is the name of the CA that should be used. FabricCa support more than one CA server on same endpoint and
-	// this names are used to distinguish between them. If empty default CA instance will be used.
-	CAName string
-}
-
-// CAModifyAffiliationRequest holds data needed to update existing affiliation stored in FabricCa server
-type CAModifyAffiliationRequest struct {
-	// Name is the name of the affiliation to be updated like `org1.department1`.
-	Name string
-	// New name is the new name of the affiliation.
-	NewName string `json:"name"`
-	// Force will force identities using old affiliation to use new affiliation.
-	Force bool `json:"force"`
-	// CAName is the name of the CA that should be used. FabricCa support more than one CA server on same endpoint and
-	// this names are used to distinguish between them. If empty default CA instance will be used.
-	CAName string `json:"caname,omitempty"`
-}
-
-// CAAffiliationResponse holds response for all operations with affiliation.
-type CAAffiliationResponse struct {
-	CAAffiliationInfo
-	CAName string `json:"caname,omitempty"`
-}
-
-// CAAffiliationInfo represent affiliation returned from FabricCA
-type CAAffiliationInfo struct {
-	// Name is the name of the affiliation
-	Name string `json:"name"`
-	// Affiliations is list of affiliations that are child to current one
-	Affiliations []CAAffiliationInfo `json:"affiliations,omitempty"`
-}
-
-// CaRevokeResult is holding result from FabricCA revoke
-type CaRevokeResult struct {
-	// RevokedCertificates is list of revoked certificates
-	RevokedCertificates []CaRevokeResultCertificate `json:"RevokedCerts"`
-	// CRL is the certificate revocation list from the operation.
-	CRL string `json:"CRL"`
-}
-
-// CaRevokeResultCertificate identify revoked certificate
-type CaRevokeResultCertificate struct {
-	// Serial is revoked certificate serial number
-	Serial string `json:"Serial"`
-	// AKI is revoked certificate AKI
-	AKI string `json:"AKI"`
-}
-
-// CAListAllIdentitiesResponse hold response for `ListAllIdentities` call
-type CAListAllIdentitiesResponse struct {
-	// Name is the name of the affiliation
-	CAName string `json:"caname"`
-	// Affiliations is list of affiliations that are child to current one
-	Identities []CaIdentityResponse `json:"identities,omitempty"`
-}
-
-// CAGetIdentityResponse holds response from `GetIdentity` call
-type CAGetIdentityResponse struct {
-	CaIdentityResponse
-	// Name is the name of the affiliation
-	CAName string `json:"caname"`
-}
-
-// CaIdentityResponse represent identity
-type CaIdentityResponse struct {
-	ID             string                `json:"id"`
-	Type           string                `json:"type"`
-	Affiliation    string                `json:"affiliation"`
-	Attributes     []CaRegisterAttribute `json:"attrs" mapstructure:"attrs"`
-	MaxEnrollments int                   `json:"max_enrollments" mapstructure:"max_enrollments"`
-}
-
-// CARemoveIdentityRequest contains needed data for removing existing identity
-type CARemoveIdentityRequest struct {
-	// Name is the id of the identity to be removed.
-	Name string
-	// Force will force removal of your own identity
-	Force bool
-	// CAName is the name of the CA that should be used. FabricCa support more than one CA server on same endpoint and
-	// this names are used to distinguish between them. If empty default CA instance will be used.
-	CAName string
-}
-
-// CAModifyIdentityRequest holds data that will be used to update existing identity
-type CAModifyIdentityRequest struct {
-	ID             string                `json:"-"`
-	Type           string                `json:"type"`
-	Affiliation    string                `json:"affiliation"`
-	Attributes     []CaRegisterAttribute `json:"attrs"`
-	MaxEnrollments int                   `json:"max_enrollments"`
-	Secret         string                `json:"secret,omitempty"`
-	CAName         string                `json:"caname,omitempty"`
+type MembershipProvider interface {
+	Register(identity *Identity, req *CARegistrationRequest) (string, error)
+	Enroll(request CaEnrollmentRequest) (*Identity, []byte, error)
+	Revoke(identity *Identity, request *CARevocationRequest) (*CaRevokeResult, error)
+	ReEnroll(request CaReEnrollmentRequest) (*Identity, []byte, error)
+	GetCaCertificateChain(caName string) (*CAGetCertsResponse, error)
+	ListAffiliations(identity *Identity, path string, caName string) (*CAAffiliationResponse, error)
+	AddAffiliation(identity *Identity, req CAAddAffiliationRequest) (*CAAffiliationResponse, error)
+	RemoveAffiliation(identity *Identity, req CARemoveAffiliationRequest) (*CAAffiliationResponse, error)
+	ModifyAffiliation(identity *Identity, req CAModifyAffiliationRequest) (*CAAffiliationResponse, error)
+	ListAllIdentities(identity *Identity, caName string) (*CAListAllIdentitiesResponse, error)
+	GetIdentity(identity *Identity, id string, caName string) (*CAGetIdentityResponse, error)
+	RemoveIdentity(identity *Identity, req CARemoveIdentityRequest) (*CAGetIdentityResponse, error)
+	ModifyIdentity(identity *Identity, req CAModifyIdentityRequest) (*CAGetIdentityResponse, error)
 }
 
 // FabricCAClient is client implementation for fabric-ca server
@@ -270,141 +53,6 @@ type FabricCAClient struct {
 	// for convenience, because (in general case) FabricCA is serving one MSP
 	// User can overwrite this value at any time.
 	MspId string
-}
-
-// CAResponse represents response message from fabric-ca server
-type caResponse struct {
-	Success  bool            `json:"success"`
-	Errors   []caResponseErr `json:"errors"`
-	Messages []string        `json:"messages"`
-}
-
-type caRegisterResponse struct {
-	caResponse
-	Result caRegisterCredentialResponse `json:"result"`
-}
-
-// CARegisterCredentialResponse credentials from fabric-ca server registration request
-type caRegisterCredentialResponse struct {
-	Secret string `json:"secret"`
-}
-
-func (c *caRegisterCredentialResponse) UnmarshalJSON(b []byte) error {
-	type tmpStruct struct {
-		Secret string `json:"secret"`
-	}
-	if len(b) > 2 {
-		r := new(tmpStruct)
-		err := json.Unmarshal(b, r)
-		if err != nil {
-			return err
-		}
-		c.Secret = r.Secret
-	}
-	return nil
-}
-
-// CAResponseErr represents error message from fabric-ca server
-type caResponseErr struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
-// enrollmentResponse is response from fabric-ca server for enrolment that contains created Ecert
-type enrollmentResponse struct {
-	caResponse
-	Result enrollmentResponseResult `json:"result"`
-}
-
-type enrollmentResponseResult struct {
-	Cert       string
-	ServerInfo enrollmentResponseServerInfo
-	Version    string
-}
-
-func (e *enrollmentResponseResult) UnmarshalJSON(b []byte) error {
-	type tmpStruct struct {
-		Cert       string
-		ServerInfo enrollmentResponseServerInfo
-		Version    string
-	}
-	if len(b) > 2 {
-		r := new(tmpStruct)
-		err := json.Unmarshal(b, r)
-		if err != nil {
-			return err
-		}
-		e.Cert = r.Cert
-		e.ServerInfo = r.ServerInfo
-		e.Version = r.Version
-	}
-	return nil
-}
-
-type caRevokeResponse struct {
-	caResponse
-	Result CaRevokeResult `json:"result"`
-}
-
-type enrollmentResponseServerInfo struct {
-	CAName  string
-	CAChain string
-}
-
-// certificateRequest holds certificate request that must be signed by fabric-ca
-type certificateRequest struct {
-	CaEnrollmentRequest
-	CR string `json:"certificate_request"`
-}
-
-type caInfoRequest struct {
-	CaName string `json:"caname,omitempty"`
-}
-
-type caInfoResponse struct {
-	caResponse
-	Result caInfoResponseResult `json:"result"`
-}
-
-type caInfoResponseResult struct {
-	CAName  string `json:"CAName"`
-	CAChain string `json:"CAChain"`
-	Version string `json:"Version"`
-}
-
-type caAffiliationResponse struct {
-	caResponse
-	Result CAAffiliationResponse `json:"result"`
-}
-
-type caListAllIdentities struct {
-	caResponse
-	Result CAListAllIdentitiesResponse `json:"result"`
-}
-type caGetIdentity struct {
-	caResponse
-	Result CAGetIdentityResponse `json:"result"`
-}
-
-// We need this because FabricCa is not consistent with returned (JSON) data types.
-// It is possible to have response where instead of JSON object we have empty string and default Unmarshal will fail.
-func (c *caInfoResponseResult) UnmarshalJSON(b []byte) error {
-	type tmpStruct struct {
-		CAName  string `json:"CAName"`
-		CAChain string `json:"CAChain"`
-		Version string `json:"Version"`
-	}
-	if len(b) > 2 {
-		r := new(tmpStruct)
-		err := json.Unmarshal(b, r)
-		if err != nil {
-			return err
-		}
-		c.CAName = r.CAName
-		c.Version = r.Version
-		c.CAChain = r.CAChain
-	}
-	return nil
 }
 
 // Register registers new user in fabric-ca server. In registration request attributes, affiliation and
@@ -1262,4 +910,373 @@ func NewCAClient(path string, transport *http.Transport) (*FabricCAClient, error
 		return nil, err
 	}
 	return NewCaClientFromConfig(*config, transport)
+}
+
+// RegistrationRequest holds all data needed for new registration of new user in Certificate Authority
+type CARegistrationRequest struct {
+	// EnrolmentId is unique name that identifies identity
+	EnrolmentId string `json:"id"`
+	// Type defines type of this identity (user,client, auditor etc...)
+	Type string `json:"type"`
+	// Secret is password that will be used for enrollment. If not provided random password will be generated
+	Secret string `json:"secret,omitempty"`
+	// MaxEnrollments define maximum number of times that identity can enroll. If not provided or is 0 there is no limit
+	MaxEnrollments int `json:"max_enrollments,omitempty"`
+	// Affiliation associates identity with particular organisation.
+	// for example org1.department1 makes this identity part of organisation `org1` and department `department1`
+	// Hierarchical structure can be created using .(dot). For example org1.dep1 will create dep1 as part of org1
+	Affiliation string `json:"affiliation"`
+	// Attrs are attributes associated with this identity
+	Attrs []CaRegisterAttribute `json:"attrs"`
+	// CAName is the name of the CA that should be used. FabricCa support more than one CA server on same endpoint and
+	// this names are used to distinguish between them. If empty default CA instance will be used.
+	CAName string `json:"caname,omitempty"`
+}
+
+// CaRegisterAttribute holds user attribute used for registration
+// for example user may have attr `accountType` with value `premium`
+// this attributes can be accessed in chainCode and build business logic on top of them
+type CaRegisterAttribute struct {
+	// Name is the name of the attribute.
+	Name string `json:"name"`
+	// Value is the value of the attribute. Can be empty string
+	Value string `json:"value"`
+	// ECert define how this attribute will be included in ECert. If this value is true this attribute will be
+	// added to ECert automatically on Enrollment if no attributes are requested on Enrollment request.
+	ECert bool `json:"ecert,omitempty"`
+}
+
+// CaEnrollmentRequest holds data needed for getting ECert (enrollment) from CA server
+type CaEnrollmentRequest struct {
+	// EnrollmentId is the unique entity identifies
+	EnrollmentId string
+	// Secret is the password for this identity
+	Secret string
+	// Profile define which CA profile to be used for signing. When this profile is empty default profile is used.
+	// This is the common situation when issuing and ECert.
+	// If request is fo generating TLS certificates then profile must be `tls`
+	// If operation is related to parent CA server then profile must be `ca`
+	// In FabricCA custom profiles can be created. In this situation use custom profile name.
+	Profile string `json:"profile,omitempty"`
+	// Label is used for hardware secure modules.
+	Label string `json:"label,omitempty"`
+	// CAName is the name of the CA that should be used. FabricCa support more than one CA server on same endpoint and
+	// this names are used to distinguish between them. If empty default CA instance will be used.
+	CAName string `json:"caname,omitempty"`
+	// Host is the list of valid host names for this certificate. If empty default hosts will be used
+	Hosts []string `json:"hosts"`
+	// Attrs are the attributes that must be included in ECert. This is subset of the attributes used in registration.
+	Attrs []CaEnrollAttribute `json:"attr_reqs,omitempty"`
+}
+
+// CaReEnrollmentRequest holds data needed for getting new ECert from CA server
+type CaReEnrollmentRequest struct {
+	Identity *Identity
+	// Profile define which CA profile to be used for signing. When this profile is empty default profile is used.
+	// This is the common situation when issuing and ECert.
+	// If request is fo generating TLS certificates then profile must be `tls`
+	// If operation is related to parent CA server then profile must be `ca`
+	// In FabricCA custom profiles can be created. In this situation use custom profile name.
+	Profile string `json:"profile,omitempty"`
+	// Label is used for hardware secure modules.
+	Label string `json:"label,omitempty"`
+	// CAName is the name of the CA that should be used. FabricCa support more than one CA server on same endpoint and
+	// this names are used to distinguish between them. If empty default CA instance will be used.
+	CAName string `json:"caname,omitempty"`
+	// Host is the list of valid host names for this certificate. If empty default hosts will be used
+	Hosts []string `json:"hosts"`
+	// Attrs are the attributes that must be included in ECert. This is subset of the attributes used in registration.
+	Attrs []CaEnrollAttribute `json:"attr_reqs,omitempty"`
+}
+
+// CaEnrollAttribute describe attribute that must be included in enrollment request
+type CaEnrollAttribute struct {
+	// Name is the name of the attribute
+	Name string `json:"name"`
+	// Optional define behaviour when required attribute is not available to user. If `true` then request will continue,
+	// but attribute will not be included in ECert. If `false` and attribute is missing, request will fail.
+	// If false and attribute is available, request will continue and attribute will be added in ECert
+	Optional bool `json:"optional,omitempty"`
+}
+
+// CARevocationRequest holds data needed to revoke certificate in fabric-ca
+// If AKI and Serial are provided this will revoke specific certificate.
+// If EnrolmentID is provided all certificated for this EnrollmentID will be revoked and all his/hers future attempts
+// to enroll will fail.
+type CARevocationRequest struct {
+	// EnrollmentId of the identity whose certificates should be revoked
+	// If this field is omitted, then Serial and AKI must be specified.
+	EnrollmentId string `json:"id,omitempty"`
+	// Serial number of the certificate to be revoked
+	// If this is omitted, then EnrollmentId must be specified
+	Serial string `json:"serial,omitempty"`
+	// AKI (Authority Key Identifier) of the certificate to be revoked
+	AKI string `json:"aki,omitempty"`
+	// Reason is the reason for revocation.  See https://godoc.org/golang.org/x/crypto/ocsp for
+	// valid values.  The default value is 0 (ocsp.Unspecified).
+	Reason int `json:"reason,omitempty"`
+	// CAName is the name of the CA that should be used. FabricCa support more than one CA server on same endpoint and
+	// this names are used to distinguish between them. If empty default CA instance will be used.
+	CAName string `json:"caname,omitempty"`
+	// GenCRL specifies whether to generate a CRL. CRL will be returned only when AKI and Serial are provided.
+	GenCRL bool `json:"gencrl,omitempty"`
+}
+
+// CAGetCertsResponse holds response from `GetCaCertificateChain`
+type CAGetCertsResponse struct {
+	// RootCertificates is list of pem encoded certificates
+	RootCertificates []*pem.Block
+	// IntermediateCertificates is list of pem encoded intermediate certificates
+	IntermediateCertificates []*pem.Block
+	// CAName is the name of the CA server that returns this certificates
+	CAName string
+	// Version is the version of server that returns this certificates
+	Version string
+}
+
+// CAAddAffiliationRequest contains needed data for creating new affiliation
+type CAAddAffiliationRequest struct {
+	// Name is the name of the affiliation. Hierarchical structure is created using .(dot) like `org1.department1`.
+	Name string `json:"name"`
+	// Force forces creation of missing parent affiliation. If `force` is false and parent/s is missing error will be returned.
+	Force bool `json:"force"`
+	// CAName is the name of the CA that should be used. FabricCa support more than one CA server on same endpoint and
+	// this names are used to distinguish between them. If empty default CA instance will be used.
+	CAName string `json:"caname,omitempty"`
+}
+
+// CARemoveAffiliationRequest contains needed data for removing existing affiliation
+type CARemoveAffiliationRequest struct {
+	// Name is the name of the affiliation to be removed. Dot can be used to specify child like `org1.department1`.
+	Name string
+	// Force will force removal of child affiliations and any identity associated with them
+	Force bool
+	// CAName is the name of the CA that should be used. FabricCa support more than one CA server on same endpoint and
+	// this names are used to distinguish between them. If empty default CA instance will be used.
+	CAName string
+}
+
+// CAModifyAffiliationRequest holds data needed to update existing affiliation stored in FabricCa server
+type CAModifyAffiliationRequest struct {
+	// Name is the name of the affiliation to be updated like `org1.department1`.
+	Name string
+	// New name is the new name of the affiliation.
+	NewName string `json:"name"`
+	// Force will force identities using old affiliation to use new affiliation.
+	Force bool `json:"force"`
+	// CAName is the name of the CA that should be used. FabricCa support more than one CA server on same endpoint and
+	// this names are used to distinguish between them. If empty default CA instance will be used.
+	CAName string `json:"caname,omitempty"`
+}
+
+// CAAffiliationResponse holds response for all operations with affiliation.
+type CAAffiliationResponse struct {
+	CAAffiliationInfo
+	CAName string `json:"caname,omitempty"`
+}
+
+// CAAffiliationInfo represent affiliation returned from FabricCA
+type CAAffiliationInfo struct {
+	// Name is the name of the affiliation
+	Name string `json:"name"`
+	// Affiliations is list of affiliations that are child to current one
+	Affiliations []CAAffiliationInfo `json:"affiliations,omitempty"`
+}
+
+// CaRevokeResult is holding result from FabricCA revoke
+type CaRevokeResult struct {
+	// RevokedCertificates is list of revoked certificates
+	RevokedCertificates []CaRevokeResultCertificate `json:"RevokedCerts"`
+	// CRL is the certificate revocation list from the operation.
+	CRL string `json:"CRL"`
+}
+
+// CaRevokeResultCertificate identify revoked certificate
+type CaRevokeResultCertificate struct {
+	// Serial is revoked certificate serial number
+	Serial string `json:"Serial"`
+	// AKI is revoked certificate AKI
+	AKI string `json:"AKI"`
+}
+
+// CAListAllIdentitiesResponse hold response for `ListAllIdentities` call
+type CAListAllIdentitiesResponse struct {
+	// Name is the name of the affiliation
+	CAName string `json:"caname"`
+	// Affiliations is list of affiliations that are child to current one
+	Identities []CaIdentityResponse `json:"identities,omitempty"`
+}
+
+// CAGetIdentityResponse holds response from `GetIdentity` call
+type CAGetIdentityResponse struct {
+	CaIdentityResponse
+	// Name is the name of the affiliation
+	CAName string `json:"caname"`
+}
+
+// CaIdentityResponse represent identity
+type CaIdentityResponse struct {
+	ID             string                `json:"id"`
+	Type           string                `json:"type"`
+	Affiliation    string                `json:"affiliation"`
+	Attributes     []CaRegisterAttribute `json:"attrs" mapstructure:"attrs"`
+	MaxEnrollments int                   `json:"max_enrollments" mapstructure:"max_enrollments"`
+}
+
+// CARemoveIdentityRequest contains needed data for removing existing identity
+type CARemoveIdentityRequest struct {
+	// Name is the id of the identity to be removed.
+	Name string
+	// Force will force removal of your own identity
+	Force bool
+	// CAName is the name of the CA that should be used. FabricCa support more than one CA server on same endpoint and
+	// this names are used to distinguish between them. If empty default CA instance will be used.
+	CAName string
+}
+
+// CAModifyIdentityRequest holds data that will be used to update existing identity
+type CAModifyIdentityRequest struct {
+	ID             string                `json:"-"`
+	Type           string                `json:"type"`
+	Affiliation    string                `json:"affiliation"`
+	Attributes     []CaRegisterAttribute `json:"attrs"`
+	MaxEnrollments int                   `json:"max_enrollments"`
+	Secret         string                `json:"secret,omitempty"`
+	CAName         string                `json:"caname,omitempty"`
+}
+
+// CAResponse represents response message from fabric-ca server
+type caResponse struct {
+	Success  bool            `json:"success"`
+	Errors   []caResponseErr `json:"errors"`
+	Messages []string        `json:"messages"`
+}
+
+type caRegisterResponse struct {
+	caResponse
+	Result caRegisterCredentialResponse `json:"result"`
+}
+
+// CARegisterCredentialResponse credentials from fabric-ca server registration request
+type caRegisterCredentialResponse struct {
+	Secret string `json:"secret"`
+}
+
+func (c *caRegisterCredentialResponse) UnmarshalJSON(b []byte) error {
+	type tmpStruct struct {
+		Secret string `json:"secret"`
+	}
+	if len(b) > 2 {
+		r := new(tmpStruct)
+		err := json.Unmarshal(b, r)
+		if err != nil {
+			return err
+		}
+		c.Secret = r.Secret
+	}
+	return nil
+}
+
+// CAResponseErr represents error message from fabric-ca server
+type caResponseErr struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+// enrollmentResponse is response from fabric-ca server for enrolment that contains created Ecert
+type enrollmentResponse struct {
+	caResponse
+	Result enrollmentResponseResult `json:"result"`
+}
+
+type enrollmentResponseResult struct {
+	Cert       string
+	ServerInfo enrollmentResponseServerInfo
+	Version    string
+}
+
+func (e *enrollmentResponseResult) UnmarshalJSON(b []byte) error {
+	type tmpStruct struct {
+		Cert       string
+		ServerInfo enrollmentResponseServerInfo
+		Version    string
+	}
+	if len(b) > 2 {
+		r := new(tmpStruct)
+		err := json.Unmarshal(b, r)
+		if err != nil {
+			return err
+		}
+		e.Cert = r.Cert
+		e.ServerInfo = r.ServerInfo
+		e.Version = r.Version
+	}
+	return nil
+}
+
+type caRevokeResponse struct {
+	caResponse
+	Result CaRevokeResult `json:"result"`
+}
+
+type enrollmentResponseServerInfo struct {
+	CAName  string
+	CAChain string
+}
+
+// certificateRequest holds certificate request that must be signed by fabric-ca
+type certificateRequest struct {
+	CaEnrollmentRequest
+	CR string `json:"certificate_request"`
+}
+
+type caInfoRequest struct {
+	CaName string `json:"caname,omitempty"`
+}
+
+type caInfoResponse struct {
+	caResponse
+	Result caInfoResponseResult `json:"result"`
+}
+
+type caInfoResponseResult struct {
+	CAName  string `json:"CAName"`
+	CAChain string `json:"CAChain"`
+	Version string `json:"Version"`
+}
+
+type caAffiliationResponse struct {
+	caResponse
+	Result CAAffiliationResponse `json:"result"`
+}
+
+type caListAllIdentities struct {
+	caResponse
+	Result CAListAllIdentitiesResponse `json:"result"`
+}
+
+type caGetIdentity struct {
+	caResponse
+	Result CAGetIdentityResponse `json:"result"`
+}
+
+// We need this because FabricCa is not consistent with returned (JSON) data types.
+// It is possible to have response where instead of JSON object we have empty string and default Unmarshal will fail.
+func (c *caInfoResponseResult) UnmarshalJSON(b []byte) error {
+	type tmpStruct struct {
+		CAName  string `json:"CAName"`
+		CAChain string `json:"CAChain"`
+		Version string `json:"Version"`
+	}
+	if len(b) > 2 {
+		r := new(tmpStruct)
+		err := json.Unmarshal(b, r)
+		if err != nil {
+			return err
+		}
+		c.CAName = r.CAName
+		c.Version = r.Version
+		c.CAChain = r.CAChain
+	}
+	return nil
 }

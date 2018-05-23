@@ -23,8 +23,8 @@ For examples see examples folder.
 ## Dependency
 
 ```
-go get -u golang.org/x/crypto/sha3
-go get -u gopkg.in/yaml.v2
+go get -u github.com/kardianos/govendor
+govendor sync
 
 ```
 
